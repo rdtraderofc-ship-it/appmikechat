@@ -23,19 +23,31 @@ async function startServer() {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
+    console.log("--- TENTATIVA DE VERIFICAÇÃO DE WEBHOOK ---");
+    console.log("Modo:", mode);
+    console.log("Token recebido:", token);
+    console.log("Token esperado (WHATSAPP_VERIFY_TOKEN):", process.env.WHATSAPP_VERIFY_TOKEN);
+
     if (mode && token) {
       if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-        console.log("WEBHOOK_VERIFIED");
+        console.log("✅ WEBHOOK VERIFICADO COM SUCESSO!");
         res.status(200).send(challenge);
       } else {
+        console.error("❌ FALHA NA VERIFICAÇÃO: Token não coincide.");
         res.sendStatus(403);
       }
+    } else {
+      console.error("❌ FALHA NA VERIFICAÇÃO: Parâmetros ausentes.");
+      res.sendStatus(400);
     }
   });
 
   // Receiving Messages
   app.post("/api/webhook", async (req, res) => {
     const body = req.body;
+
+    console.log("--- WEBHOOK RECEBIDO ---");
+    console.log(JSON.stringify(body, null, 2));
 
     if (body.object) {
       if (
@@ -45,18 +57,41 @@ async function startServer() {
         body.entry[0].changes[0].value.messages[0]
       ) {
         const message = body.entry[0].changes[0].value.messages[0];
-        const from = message.from; // phone number
-        const msgBody = message.text?.body || "Mídia/Outro";
+        const from = message.from; 
+        const msgText = message.text?.body || "Mídia/Outro";
         
-        console.log(`Mensagem recebida de ${from}: ${msgBody}`);
+        console.log(`Mensagem de ${from}: ${msgText}`);
         
-        // Aqui você integraria com o Supabase para salvar a mensagem
-        // e possivelmente disparar o Socket.io ou Realtime do Supabase
+        // Simulação de resposta ou salvamento no banco
+        // Se o Supabase estivesse configurado no backend, salvaríamos aqui
       }
       res.sendStatus(200);
     } else {
       res.sendStatus(404);
     }
+  });
+
+  // Rota de Teste Local (Simulação)
+  app.post("/api/test-webhook", (req, res) => {
+    const mockBody = {
+      object: "whatsapp_business_account",
+      entry: [{
+        changes: [{
+          value: {
+            messages: [{
+              from: "5511999999999",
+              text: { body: req.body.text || "Mensagem de teste do ZapFlow" },
+              timestamp: Math.floor(Date.now() / 1000)
+            }]
+          },
+          field: "messages"
+        }]
+      }]
+    };
+    
+    // Chama o webhook internamente
+    app._router.handle({ method: 'POST', url: '/api/webhook', body: mockBody }, res, () => {});
+    return;
   });
 
   // --- API Routes ---

@@ -107,6 +107,19 @@ export default function App() {
                 <div className="p-4 bg-[#f0f2f5] flex items-center justify-between">
                   <h1 className="text-xl font-bold text-gray-800">Conversas</h1>
                   <div className="flex gap-2">
+                    <button 
+                      onClick={async () => {
+                        await fetch('/api/test-webhook', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ text: "Olá! Teste de simulação." })
+                        });
+                        alert("Simulação enviada! Verifique o console do servidor.");
+                      }}
+                      className="p-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-full transition-colors title='Simular Mensagem'"
+                    >
+                      <Bot className="w-5 h-5" />
+                    </button>
                     <button className="p-2 hover:bg-gray-200 rounded-full transition-colors"><Search className="w-5 h-5 text-gray-600" /></button>
                     <button className="p-2 hover:bg-gray-200 rounded-full transition-colors"><MoreVertical className="w-5 h-5 text-gray-600" /></button>
                   </div>
