@@ -7,10 +7,20 @@ import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || '',
-  process.env.VITE_SUPABASE_ANON_KEY || ''
-);
+let supabase: any = null;
+
+function getSupabase() {
+  if (!supabase) {
+    const url = process.env.VITE_SUPABASE_URL;
+    const key = process.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      console.warn("⚠️ Supabase credentials missing. Persistence disabled.");
+      return null;
+    }
+    supabase = createClient(url, key);
+  }
+  return supabase;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,21 +90,24 @@ async function startServer() {
         console.log(`Mensagem de ${from}: ${msgText}`);
 
         // Salvar no Supabase
-        try {
-          await supabase.from('contacts').upsert({ 
-            phone: from, 
-            last_message: msgText,
-            last_message_time: new Date().toISOString()
-          }, { onConflict: 'phone' });
+        const sb = getSupabase();
+        if (sb) {
+          try {
+            await sb.from('contacts').upsert({ 
+              phone: from, 
+              last_message: msgText,
+              last_message_time: new Date().toISOString()
+            }, { onConflict: 'phone' });
 
-          await supabase.from('messages').insert({
-            text: msgText,
-            sender_type: 'contact',
-            metadata: { raw: body }
-          });
-          console.log("✅ Dados salvos no Supabase com sucesso.");
-        } catch (err) {
-          console.error("❌ Erro ao salvar no Supabase:", err);
+            await sb.from('messages').insert({
+              text: msgText,
+              sender_type: 'contact',
+              metadata: { raw: body }
+            });
+            console.log("✅ Dados salvos no Supabase com sucesso.");
+          } catch (err) {
+            console.error("❌ Erro ao salvar no Supabase:", err);
+          }
         }
       }
       res.sendStatus(200);
