@@ -8,6 +8,7 @@ module.exports = {
       .upsert({ 
         phone: phone, 
         last_message: lastMessage,
+        last_message_time: new Date().toISOString(),
         last_interaction_at: new Date().toISOString()
       }, { onConflict: 'phone' })
       .select()

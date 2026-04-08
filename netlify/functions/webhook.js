@@ -20,13 +20,10 @@ exports.handler = async (event, context) => {
       const body = JSON.parse(event.body);
       
       // REQUISITO: Responder rápido (< 5s)
-      // Apenas jogamos na fila e respondemos 200
+      // No Netlify, precisamos dar await para garantir que o processamento ocorra
+      // antes da função ser encerrada.
       const queueItem = await queueService.addToQueue(body);
-
-      // Disparamos o processamento de forma assíncrona (Fire and Forget)
-      // No Netlify, isso pode ser feito chamando a própria função ou uma dedicada
-      // Para este ambiente, vamos processar logo após o insert para garantir a execução
-      queueService.processQueueItem(queueItem.id).catch(e => logger.error("Erro assíncrono", e));
+      await queueService.processQueueItem(queueItem.id);
 
       return { statusCode: 200, body: "EVENT_RECEIVED" };
     } catch (err) {

@@ -42,6 +42,13 @@ exports.handler = async (event, context) => {
       created_at: new Date().toISOString()
     });
 
+    // 3. Atualizar contato com a última mensagem do agente
+    await supabase.from('contacts').update({
+      last_message: text,
+      last_message_time: new Date().toISOString(),
+      last_interaction_at: new Date().toISOString()
+    }).eq('id', contactId);
+
     return { 
       statusCode: 200, 
       body: JSON.stringify({ success: true }) 

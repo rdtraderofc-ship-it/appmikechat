@@ -107,9 +107,12 @@ export default function App() {
           status: 'online' as const
         }));
         setContacts(formatted);
-        if (!selectedContact && formatted.length > 0) {
-          setSelectedContact(formatted[0]);
-        }
+        
+        // Auto-selecionar apenas se não houver nenhum selecionado
+        setSelectedContact(prev => {
+          if (!prev && formatted.length > 0) return formatted[0];
+          return prev;
+        });
       }
     };
     fetchContacts();
@@ -175,7 +178,6 @@ export default function App() {
     if (currentView === 'dashboard') {
       const fetchEvents = async () => {
         try {
-          // Buscamos os contatos mais recentes do Supabase
           const { data, error } = await supabase
             .from('contacts')
             .select('*')
@@ -184,7 +186,6 @@ export default function App() {
           
           if (error) throw error;
           
-          // Transformamos os dados para o formato do monitor
           const events = data.map(c => ({
             id: c.id,
             timestamp: c.last_message_time,
@@ -196,9 +197,16 @@ export default function App() {
           console.error("Erro ao buscar eventos do Supabase:", err);
         }
       };
-      const interval = setInterval(fetchEvents, 5000);
+
       fetchEvents();
-      return () => clearInterval(interval);
+
+      // Real-time subscription for the monitor
+      const sub = supabase.channel('monitor_changes')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contacts' }, fetchEvents)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contacts' }, fetchEvents)
+        .subscribe();
+
+      return () => { supabase.removeChannel(sub); };
     }
   }, [currentView]);
 

@@ -45,16 +45,24 @@ module.exports = {
       await whatsappService.sendMessage(phone, step.message_text);
       logger.info("✅ Resposta do funil enviada", { phone, stage: currentStage });
 
-      // 4. Atualizar para a Próxima Etapa
+      // 4. Atualizar para a Próxima Etapa e Informações de Contato
+      const updateData = {
+        last_message: step.message_text,
+        last_message_time: new Date().toISOString(),
+        last_interaction_at: new Date().toISOString()
+      };
+
       if (step.next_step_key) {
-        const { error: updateError } = await supabase
-          .from('contacts')
-          .update({ funnel_stage: step.next_step_key })
-          .eq('id', contact.id);
-        
-        if (updateError) throw updateError;
-        logger.info("➡️ Estágio do funil atualizado", { phone, nextStage: step.next_step_key });
+        updateData.funnel_stage = step.next_step_key;
       }
+
+      const { error: updateError } = await supabase
+        .from('contacts')
+        .update(updateData)
+        .eq('id', contact.id);
+      
+      if (updateError) throw updateError;
+      logger.info("➡️ Estágio e informações do contato atualizados", { phone, nextStage: step.next_step_key });
 
     } catch (err) {
       // REQUISITO: Tratamento de erros robusto
