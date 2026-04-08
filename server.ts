@@ -3,11 +3,20 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL || '',
+  process.env.VITE_SUPABASE_ANON_KEY || ''
+);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// In-memory storage for demo/testing purposes
+let webhookEvents: any[] = [];
 
 async function startServer() {
   const app = express();
@@ -44,26 +53,49 @@ async function startServer() {
 
   // Receiving Messages
   app.post("/api/webhook", async (req, res) => {
+    console.log("--- NOVO POST RECEBIDO EM /api/webhook ---");
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("Body:", JSON.stringify(req.body, null, 2));
+
     const body = req.body;
 
-    console.log("--- WEBHOOK RECEBIDO ---");
-    console.log(JSON.stringify(body, null, 2));
+    // Store event for the frontend monitor
+    webhookEvents.unshift({
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      data: body
+    });
+    if (webhookEvents.length > 10) webhookEvents.pop();
 
-    if (body.object) {
-      if (
-        body.entry &&
-        body.entry[0].changes &&
-        body.entry[0].changes[0].value.messages &&
-        body.entry[0].changes[0].value.messages[0]
-      ) {
-        const message = body.entry[0].changes[0].value.messages[0];
+    if (body.object === "whatsapp_business_account") {
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+      const message = value?.messages?.[0];
+
+      if (message) {
         const from = message.from; 
         const msgText = message.text?.body || "Mídia/Outro";
         
         console.log(`Mensagem de ${from}: ${msgText}`);
-        
-        // Simulação de resposta ou salvamento no banco
-        // Se o Supabase estivesse configurado no backend, salvaríamos aqui
+
+        // Salvar no Supabase
+        try {
+          await supabase.from('contacts').upsert({ 
+            phone: from, 
+            last_message: msgText,
+            last_message_time: new Date().toISOString()
+          }, { onConflict: 'phone' });
+
+          await supabase.from('messages').insert({
+            text: msgText,
+            sender_type: 'contact',
+            metadata: { raw: body }
+          });
+          console.log("✅ Dados salvos no Supabase com sucesso.");
+        } catch (err) {
+          console.error("❌ Erro ao salvar no Supabase:", err);
+        }
       }
       res.sendStatus(200);
     } else {
@@ -95,6 +127,10 @@ async function startServer() {
   });
 
   // --- API Routes ---
+  app.get("/api/webhook-events", (req, res) => {
+    res.json(webhookEvents);
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "ZapFlow Pro Server is running" });
   });

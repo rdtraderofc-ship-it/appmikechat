@@ -65,14 +65,28 @@ export default function App() {
     if (currentView === 'dashboard') {
       const fetchEvents = async () => {
         try {
-          const res = await fetch('/api/webhook-events');
-          const data = await res.json();
-          setWebhookEvents(data);
+          // Buscamos os contatos mais recentes do Supabase
+          const { data, error } = await supabase
+            .from('contacts')
+            .select('*')
+            .order('last_message_time', { ascending: false })
+            .limit(10);
+          
+          if (error) throw error;
+          
+          // Transformamos os dados para o formato do monitor
+          const events = data.map(c => ({
+            id: c.id,
+            timestamp: c.last_message_time,
+            data: { from: c.phone, text: c.last_message }
+          }));
+          
+          setWebhookEvents(events);
         } catch (err) {
-          console.error("Erro ao buscar eventos:", err);
+          console.error("Erro ao buscar eventos do Supabase:", err);
         }
       };
-      const interval = setInterval(fetchEvents, 3000);
+      const interval = setInterval(fetchEvents, 5000);
       fetchEvents();
       return () => clearInterval(interval);
     }
