@@ -19,7 +19,7 @@ import { cn, formatDate } from './lib/utils';
 import { supabase } from './lib/supabase';
 
 // --- Types ---
-type View = 'chat' | 'dashboard' | 'bot' | 'agents' | 'settings';
+type View = 'chat' | 'dashboard' | 'bot' | 'agents' | 'settings' | 'privacy';
 
 interface Message {
   id: string;
@@ -62,6 +62,11 @@ export default function App() {
   const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
 
   useEffect(() => {
+    // Detectar se o usuário está na rota de privacidade
+    if (window.location.pathname === '/privacy') {
+      setCurrentView('privacy');
+    }
+
     if (currentView === 'dashboard') {
       const fetchEvents = async () => {
         try {
@@ -309,6 +314,58 @@ export default function App() {
                     ))
                   )}
                 </div>
+              </div>
+            </motion.div>
+          )}
+
+          {currentView === 'privacy' && (
+            <motion.div 
+              key="privacy"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex-1 p-8 md:p-16 overflow-y-auto bg-white"
+            >
+              <div className="max-w-3xl mx-auto">
+                <h1 className="text-4xl font-bold text-gray-900 mb-8 border-b pb-4">Política de Privacidade</h1>
+                
+                <div className="prose prose-emerald lg:prose-lg text-gray-700 space-y-6">
+                  <p className="text-lg leading-relaxed">
+                    Este aplicativo utiliza a API oficial do WhatsApp para comunicação com clientes.
+                  </p>
+                  
+                  <div className="bg-emerald-50 border-l-4 border-emerald-500 p-6 rounded-r-xl">
+                    <p className="font-medium text-emerald-900">
+                      As mensagens são utilizadas exclusivamente para atendimento, suporte e envio de informações solicitadas pelo usuário.
+                    </p>
+                  </div>
+
+                  <p className="text-lg">
+                    Nenhum dado é compartilhado com terceiros. Garantimos a total confidencialidade das suas informações e interações.
+                  </p>
+
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-3">Seus Direitos</h2>
+                    <p>O usuário pode solicitar a exclusão dos dados a qualquer momento, em conformidade com as leis de proteção de dados vigentes.</p>
+                  </div>
+
+                  <div className="pt-8 border-t border-gray-100">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Contato</h2>
+                    <div className="flex items-center gap-3 text-emerald-600 font-medium">
+                      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <a href="mailto:appchat@gmail.com" className="hover:underline">appchat@gmail.com</a>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setCurrentView('chat')}
+                  className="mt-12 px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all active:scale-95"
+                >
+                  Voltar para o App
+                </button>
               </div>
             </motion.div>
           )}
