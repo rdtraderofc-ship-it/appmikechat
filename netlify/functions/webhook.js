@@ -36,7 +36,9 @@ exports.handler = async (event, context) => {
           const from = message.from;
           const text = message.text?.body || "Mídia/Outro";
 
-          // 1. Upsert Contact
+          console.log(`Processando mensagem de ${from}: ${text}`);
+
+          // 1. Upsert Contact (Garante que o contato existe)
           const { data: contact, error: contactError } = await supabase
             .from('contacts')
             .upsert({ 
@@ -47,15 +49,44 @@ exports.handler = async (event, context) => {
             .select()
             .single();
 
-          if (contactError) console.error("Erro ao salvar contato:", contactError);
+          if (contactError) {
+            console.error("Erro ao salvar contato:", contactError);
+            throw contactError;
+          }
 
-          // 2. Save Message (Opcional: vincular a uma conversa se existir)
-          // Para este teste, vamos apenas registrar no log do Supabase ou em uma tabela de logs
-          await supabase.from('messages').insert({
+          // 2. Buscar ou Criar Conversa Aberta
+          let { data: conversation, error: convError } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('contact_id', contact.id)
+            .eq('status', 'open')
+            .single();
+
+          if (!conversation) {
+            const { data: newConv, error: createConvError } = await supabase
+              .from('conversations')
+              .insert({ contact_id: contact.id, status: 'open' })
+              .select()
+              .single();
+            
+            if (createConvError) throw createConvError;
+            conversation = newConv;
+          }
+
+          // 3. Salvar a Mensagem com o conversation_id obrigatório
+          const { error: msgError } = await supabase.from('messages').insert({
+            conversation_id: conversation.id,
             text: text,
             sender_type: 'contact',
             metadata: { raw: body }
           });
+
+          if (msgError) {
+            console.error("Erro ao salvar mensagem:", msgError);
+            throw msgError;
+          }
+
+          console.log("✅ Mensagem e conversa processadas com sucesso!");
         }
       }
 
