@@ -202,17 +202,35 @@ export default function App() {
     }
   }, [currentView]);
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'agent',
-      timestamp: new Date().toISOString(),
-      status: 'sent'
-    };
-    setMessages([...messages, newMessage]);
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !selectedContact) return;
+    
+    const textToSend = inputText;
     setInputText('');
+
+    try {
+      const response = await fetch('/api/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: selectedContact.phone,
+          text: textToSend,
+          contactId: selectedContact.id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao enviar mensagem');
+      }
+
+      // Nota: Não precisamos atualizar o estado de mensagens manualmente aqui
+      // porque o Realtime do Supabase vai detectar o INSERT e atualizar a lista
+      // via o useEffect que já implementamos.
+    } catch (err) {
+      console.error("Erro ao enviar mensagem:", err);
+      alert("Erro ao enviar mensagem. Verifique os logs.");
+    }
   };
 
   return (

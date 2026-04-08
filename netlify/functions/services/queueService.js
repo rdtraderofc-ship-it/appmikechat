@@ -9,6 +9,7 @@ const MAX_RETRIES = 3;
 module.exports = {
   // 1. Adicionar à Fila (Rápido)
   addToQueue: async (payload) => {
+    if (!supabase) throw new Error("Supabase client not initialized. Check environment variables.");
     const { data, error } = await supabase.from('message_queue').insert({ 
       payload, 
       status: 'pending' 
@@ -21,6 +22,10 @@ module.exports = {
 
   // 2. Processar Fila (Lógica Pesada)
   processQueueItem: async (queueId) => {
+    if (!supabase) {
+      logger.error("Supabase client not initialized. Cannot process queue.");
+      return;
+    }
     try {
       // Marcar como processando para evitar duplicados - REQUISITO: Evitar processamento duplicado
       const { data: item, error: lockError } = await supabase

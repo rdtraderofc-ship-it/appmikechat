@@ -2,6 +2,7 @@ const supabase = require('../utils/supabase');
 
 module.exports = {
   getOrCreateUser: async (phone, lastMessage) => {
+    if (!supabase) throw new Error("Supabase client not initialized.");
     const { data: contact, error } = await supabase
       .from('contacts')
       .upsert({ 

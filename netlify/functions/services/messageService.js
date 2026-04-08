@@ -3,6 +3,7 @@ const supabase = require('../utils/supabase');
 module.exports = {
   // 1. Idempotência: Verificar se a mensagem já existe (wamid)
   isDuplicate: async (wamid) => {
+    if (!supabase) throw new Error("Supabase client not initialized.");
     if (!wamid) return false;
     const { data } = await supabase
       .from('messages')
