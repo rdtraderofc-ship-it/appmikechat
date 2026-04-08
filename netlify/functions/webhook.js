@@ -6,94 +6,86 @@ const supabase = createClient(
 );
 
 exports.handler = async (event, context) => {
-  // VERIFICAÇÃO DO META
+  // 1. VERIFICAÇÃO (GET) - REQUISITO META #1
   if (event.httpMethod === "GET") {
     const params = event.queryStringParameters;
     const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "meu_token_131588";
 
-    if (
-      params["hub.mode"] === "subscribe" &&
-      params["hub.verify_token"] === VERIFY_TOKEN
-    ) {
+    if (params["hub.mode"] === "subscribe" && params["hub.verify_token"] === VERIFY_TOKEN) {
+      console.log("✅ Webhook verificado com sucesso!");
       return { statusCode: 200, body: params["hub.challenge"] };
     }
     return { statusCode: 403, body: "Erro de verificação" };
   }
 
-  // RECEBER MENSAGEM
+  // 2. RECEBIMENTO DE EVENTOS (POST) - REQUISITO META #1 & #2
   if (event.httpMethod === "POST") {
     try {
       const body = JSON.parse(event.body);
-      console.log("Mensagem recebida:", JSON.stringify(body));
+      
+      // Log para Debug - REQUISITO META #15
+      console.log("📩 Evento recebido:", JSON.stringify(body));
 
-      if (body.object === "whatsapp_business_account") {
-        const entry = body.entry?.[0];
-        const change = entry?.changes?.[0];
-        const value = change?.value;
-        const message = value?.messages?.[0];
+      // Extração de dados - REQUISITO META #2
+      const entry = body.entry?.[0];
+      const changes = entry?.changes?.[0];
+      const value = changes?.value;
+      const message = value?.messages?.[0];
 
-        if (message) {
-          const from = message.from;
-          const text = message.text?.body || "Mídia/Outro";
+      if (message) {
+        const from = message.from;
+        const text = message.text?.body || "";
+        const wamid = message.id; // ID único da mensagem - REQUISITO META #8
 
-          console.log(`Processando mensagem de ${from}: ${text}`);
+        // --- LÓGICA DE PERSISTÊNCIA ---
+        
+        // A. Upsert Contact
+        const { data: contact, error: contactError } = await supabase
+          .from('contacts')
+          .upsert({ 
+            phone: from, 
+            last_message: text,
+            last_message_time: new Date().toISOString()
+          }, { onConflict: 'phone' })
+          .select()
+          .single();
 
-          // 1. Upsert Contact (Garante que o contato existe)
-          const { data: contact, error: contactError } = await supabase
-            .from('contacts')
-            .upsert({ 
-              phone: from, 
-              last_message: text,
-              last_message_time: new Date().toISOString()
-            }, { onConflict: 'phone' })
+        if (contactError) throw contactError;
+
+        // B. Buscar ou Criar Conversa (Controle de Sessão)
+        let { data: conversation } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', contact.id)
+          .eq('status', 'open')
+          .single();
+
+        if (!conversation) {
+          const { data: newConv } = await supabase
+            .from('conversations')
+            .insert({ contact_id: contact.id, status: 'open' })
             .select()
             .single();
+          conversation = newConv;
+        }
 
-          if (contactError) {
-            console.error("Erro ao salvar contato:", contactError);
-            throw contactError;
-          }
-
-          // 2. Buscar ou Criar Conversa Aberta
-          let { data: conversation, error: convError } = await supabase
-            .from('conversations')
-            .select('id')
-            .eq('contact_id', contact.id)
-            .eq('status', 'open')
-            .single();
-
-          if (!conversation) {
-            const { data: newConv, error: createConvError } = await supabase
-              .from('conversations')
-              .insert({ contact_id: contact.id, status: 'open' })
-              .select()
-              .single();
-            
-            if (createConvError) throw createConvError;
-            conversation = newConv;
-          }
-
-          // 3. Salvar a Mensagem com o conversation_id obrigatório
-          const { error: msgError } = await supabase.from('messages').insert({
+        // C. Salvar Mensagem (Idempotência via wamid)
+        if (conversation) {
+          await supabase.from('messages').insert({
             conversation_id: conversation.id,
             text: text,
             sender_type: 'contact',
+            wamid: wamid,
             metadata: { raw: body }
           });
-
-          if (msgError) {
-            console.error("Erro ao salvar mensagem:", msgError);
-            throw msgError;
-          }
-
-          console.log("✅ Mensagem e conversa processadas com sucesso!");
         }
       }
 
+      // SEMPRE retornar 200 OK para a Meta - REQUISITO META #1 & #9
       return { statusCode: 200, body: "EVENT_RECEIVED" };
     } catch (err) {
-      console.error("Erro no processamento:", err);
-      return { statusCode: 500, body: "Internal Error" };
+      console.error("❌ Erro interno (mas respondendo 200):", err);
+      return { statusCode: 200, body: "EVENT_RECEIVED" };
     }
   }
 
