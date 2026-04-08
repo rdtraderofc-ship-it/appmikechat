@@ -59,6 +59,24 @@ export default function App() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(MOCK_CONTACTS[0]);
   const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
   const [inputText, setInputText] = useState('');
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (currentView === 'dashboard') {
+      const fetchEvents = async () => {
+        try {
+          const res = await fetch('/api/webhook-events');
+          const data = await res.json();
+          setWebhookEvents(data);
+        } catch (err) {
+          console.error("Erro ao buscar eventos:", err);
+        }
+      };
+      const interval = setInterval(fetchEvents, 3000);
+      fetchEvents();
+      return () => clearInterval(interval);
+    }
+  }, [currentView]);
 
   const handleSendMessage = () => {
     if (!inputText.trim()) return;
@@ -241,6 +259,41 @@ export default function App() {
                       <span className="text-[10px] text-gray-400 uppercase font-bold">Dia {i+1}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold">Monitor de Webhook (Tempo Real)</h2>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-xs text-gray-500 font-medium">Escutando eventos...</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {webhookEvents.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-xl">
+                      <p className="text-gray-400 text-sm">Nenhum evento recebido ainda. Envie uma mensagem para o seu número de teste!</p>
+                    </div>
+                  ) : (
+                    webhookEvents.map((event) => (
+                      <motion.div 
+                        key={event.id}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex flex-col gap-2"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">Mensagem Recebida</span>
+                          <span className="text-[10px] text-gray-400">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <pre className="text-[11px] text-gray-600 font-mono overflow-x-auto p-2 bg-white rounded border border-gray-100">
+                          {JSON.stringify(event.data, null, 2)}
+                        </pre>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>
